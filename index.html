@@ -158,6 +158,14 @@
     border-radius: 999px;
     background: rgba(26, 28, 25, 0.25);
   }
+  /* pulse the next phone when a button carries you forward in the flow */
+  .phone.flash { animation: phoneFlash 1.1s ease; }
+  @keyframes phoneFlash {
+    0%   { box-shadow: 0 24px 48px rgba(26,28,25,.18), 0 4px 12px rgba(26,28,25,.12), 0 0 0 0 rgba(27,94,32,0); }
+    22%  { box-shadow: 0 24px 48px rgba(26,28,25,.18), 0 4px 12px rgba(26,28,25,.12), 0 0 0 5px var(--green-fixed); }
+    100% { box-shadow: 0 24px 48px rgba(26,28,25,.18), 0 4px 12px rgba(26,28,25,.12), 0 0 0 0 rgba(27,94,32,0); }
+  }
+  @media (prefers-reduced-motion: reduce) { .phone.flash { animation: none; } }
   .app {
     flex: 1;
     display: flex;
@@ -530,33 +538,49 @@
     })(t0);
   }
 
+  const phones = [...document.querySelectorAll('.phone')];
+  const many = document.querySelector('#s2');          // One of Many — the destination
+  const manyCountEls = many.querySelectorAll('[data-count]');
+  let manyCount = START;
+  const bumpMany = () => {
+    manyCountEls.forEach(el => { rollTo(el, manyCount, manyCount + 1); pulse(el); });
+    manyCount += 1;
+  };
+
+  // A button carries you to the next screen: pulse it and bring it into view.
+  function advanceTo(phone) {
+    if (!phone) return;
+    phone.classList.remove('flash');
+    void phone.offsetWidth;
+    phone.classList.add('flash');
+    phone.scrollIntoView({ behavior: reduced ? 'auto' : 'smooth', block: 'center', inline: 'center' });
+  }
+
   document.querySelectorAll('.screen').forEach(screen => {
-    let count = START;
     const btn = screen.querySelector('[data-join]');
-    const countEls = screen.querySelectorAll('[data-count]');
-    const youAre = screen.querySelector('[data-youare]');
-    const setCount = (to, dur) => {
-      countEls.forEach(el => { rollTo(el, count, to, dur); pulse(el); });
-      count = to;
-    };
+    if (!btn) return;
+    // One of Many is the already-joined home — its button is a resting state, not a tap target.
+    if (screen.classList.contains('joined')) return;
+    const nextPhone = phones[phones.indexOf(screen.closest('.phone')) + 1] || null;
 
     btn.addEventListener('click', () => {
-      if (screen.classList.contains('joined')) return;
-      screen.classList.add('joined');
-      btn.textContent = btn.dataset.joined;
-      setCount(count + 1);
-      if (youAre) youAre.textContent = 'You’re #' + fmt(count);
-      if (screen.id === 's2') confetti(screen, screen.querySelector('.big-count'));
+      // Real behavior: the button moves you forward; it never toggles its own label.
+      advanceTo(nextPhone);
+      // The Pledge tap is the actual join — celebrate on the One of Many screen you land on.
+      if (screen.id === 's3') {
+        bumpMany();
+        confetti(many, many.querySelector('.big-count'));
+      }
     });
-
-    if (screen.id === 's2' && !reduced) {
-      // odometer roll-up on load, then ambient ticks to convey momentum
-      const big = screen.querySelector('.big-count');
-      big.textContent = fmt(START - 118);
-      setTimeout(() => rollTo(big, START - 118, START, 1600), 700);
-      (function ambient() {
-        setTimeout(() => { setCount(count + 1); ambient(); }, 5000 + Math.random() * 6000);
-      })();
-    }
   });
+
+  // One of Many: odometer roll-up on load, then ambient ticks to convey momentum.
+  if (!reduced) {
+    const big = many.querySelector('.big-count');
+    big.textContent = fmt(START - 118);
+    setTimeout(() => rollTo(big, START - 118, START, 1600), 700);
+    (function ambient() {
+      setTimeout(() => { bumpMany(); ambient(); }, 5000 + Math.random() * 6000);
+    })();
+  }
 </script>
